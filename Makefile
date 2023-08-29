@@ -37,3 +37,7 @@ docker-compose-down:
 docker-compose-logs:
 	docker compose -f docker-compose-dev.yaml logs -f
 .PHONY: docker-compose-logs
+
+docker-netcat:
+	docker build -f ./netcat/Dockerfile -t netcat-image .
+	docker run --rm --network tp0_testing_net --env-file ./netcat/config.txt --name netcat-container netcat-image 
