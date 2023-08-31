@@ -88,6 +88,8 @@ func PrintConfig(v *viper.Viper) {
 }
 
 func main() {
+	//time.Sleep(10 * time.Second)
+
 	v, err := InitConfig()
 	if err != nil {
 		log.Fatalf("%s", err)

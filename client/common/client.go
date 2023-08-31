@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"os"
+    "os/signal"
+    "syscall"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -38,6 +41,7 @@ func NewClient(config ClientConfig) *Client {
 func (c *Client) createClientSocket() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
+		c.conn.Close()
 		log.Fatalf(
 	        "action: connect | result: fail | client_id: %v | error: %v",
 			c.config.ID,
@@ -53,6 +57,10 @@ func (c *Client) StartClientLoop() {
 	// autoincremental msgID to identify every message sent
 	msgID := 1
 
+	// Create a channel to signal the client to exit gracefully
+	signalChan := make(chan os.Signal, 1)
+    signal.Notify(signalChan, syscall.SIGTERM)
+
 loop:
 	// Send messages if the loopLapse threshold has not been surpassed
 	for timeout := time.After(c.config.LoopLapse); ; {
@@ -62,6 +70,16 @@ loop:
                 c.config.ID,
             )
 			break loop
+		case <-signalChan:
+			log.Infof("action: shutdown_detected | result: success | client_id: %v",
+				c.config.ID,
+			)
+			close(signalChan)
+			log.Infof("action: release_channel | result: success | client_id: %v",
+				c.config.ID,
+			)
+			break loop
+		
 		default:
 		}
 
@@ -78,6 +96,7 @@ loop:
 		msg, err := bufio.NewReader(c.conn).ReadString('\n')
 		msgID++
 		c.conn.Close()
+		log.Infof("action: release_socket | result: success")
 
 		if err != nil {
 			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
