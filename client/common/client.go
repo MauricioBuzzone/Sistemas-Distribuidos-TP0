@@ -2,12 +2,8 @@ package common
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"time"
-	"os"
-    "os/signal"
-    "syscall"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -52,67 +48,55 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
+// Close the client socket
+func (c *Client) CloseSocket() {	
+	if c.conn != nil {
+		c.conn.Close()
+	}
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	// autoincremental msgID to identify every message sent
-	msgID := 1
 
-	// Create a channel to signal the client to exit gracefully
-	signalChan := make(chan os.Signal, 1)
-    signal.Notify(signalChan, syscall.SIGTERM)
-
-loop:
-	// Send messages if the loopLapse threshold has not been surpassed
-	for timeout := time.After(c.config.LoopLapse); ; {
-		select {
-		case <-timeout:
-	        log.Infof("action: timeout_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		case <-signalChan:
-			log.Infof("action: shutdown_detected | result: success | client_id: %v",
-				c.config.ID,
-			)
-			close(signalChan)
-			log.Infof("action: release_channel | result: success | client_id: %v",
-				c.config.ID,
-			)
-			break loop
-		
-		default:
-		}
-
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
-
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		msgID++
-		c.conn.Close()
-		log.Infof("action: release_socket | result: success")
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-                c.config.ID,
-				err,
-			)
-			return
-		}
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-            c.config.ID,
-            msg,
-        )
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
+	// Send messages
+	// Create the connection the server in every loop iteration. Send an
+	log.Infof("Llegue hasta aca ")
+	
+	c.createClientSocket()
+	
+	log.Infof("Llegue hasta aca ")
+	bet := Bet{
+		ID:            c.config.ID,
+		FirstName:     "FirstName",
+		LastName:	   "LastName",
+		Document:	   "Document",
+		Birthdate:	   "Birthdate",
+		Number:        "Number",
 	}
+	
+	sendBet(c.conn, bet)
 
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	log.Infof("action: apuesta_enviada | result: success | dni: %v  | numero: %v",
+	bet.Document,
+	bet.Number,
+)
+	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+	
+	c.conn.Close()
+	log.Infof("action: release_socket | result: success")
+
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return
+	}
+	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+		c.config.ID,
+		msg,
+	)
+
+	log.Infof("action: finished | result: success | client_id: %v", c.config.ID)
 }
