@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"
+	"time"	
+	"os"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -87,7 +88,18 @@ func PrintConfig(v *viper.Viper) {
     )
 }
 
+func closeClient(client *common.Client, signalChannel chan os.Signal) {
+	<- signalChannel
+	log.Infof("action: stop_client | result: in_progress")
+	client.CloseSocket()
+	log.Infof("action: release_socket | result: success")
+	close(signalChannel)
+	log.Infof("action: release_signal_channel| result: success")
+	log.Infof("action: stop_client | result: success")
+}
+
 func main() {
+
 	v, err := InitConfig()
 	if err != nil {
 		log.Fatalf("%s", err)
@@ -108,5 +120,6 @@ func main() {
 	}
 
 	client := common.NewClient(clientConfig)
+
 	client.StartClientLoop()
 }

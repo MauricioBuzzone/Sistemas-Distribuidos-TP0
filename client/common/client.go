@@ -1,10 +1,12 @@
 package common
 
 import (
-	"bufio"
-	"fmt"
 	"net"
 	"time"
+	"os"
+	"os/signal"
+    "syscall"
+    "sync"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -48,52 +50,63 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
+// Close the client socket
+func (c *Client) CloseSocket() {	
+	if c.conn != nil {
+		c.conn.Close()
+	}
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	// autoincremental msgID to identify every message sent
-	msgID := 1
+	signalChan := make(chan os.Signal, 1)
+    signal.Notify(signalChan, syscall.SIGTERM)
+    var wg sync.WaitGroup
+    connFinishChan := make(chan bool)
+    c.createClientSocket()
+    wg.Add(1)
 
-loop:
-	// Send messages if the loopLapse threshold has not been surpassed
-	for timeout := time.After(c.config.LoopLapse); ; {
-		select {
-		case <-timeout:
-	        log.Infof("action: timeout_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		default:
+    go func() {
+        bet := Bet{
+		ID:            c.config.ID,
+		FirstName:     os.Getenv("NOMBRE"),
+		LastName:	   os.Getenv("APELLIDO"),
+		Document:	   os.Getenv("DOCUMENTO"),
+		Birthdate:	   os.Getenv("NACIMIENTO"),
+		Number:        os.Getenv("NUMERO"),
 		}
+		data := serializeBet(bet)
+		sendBet(c.conn, data)
 
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
-
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
+		log.Infof("action: esperando_confirmacion | result: in_progress")
+		msg, err := readMessage(c.conn)
+		log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
+			msg[1],
+			msg[2],
 		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		msgID++
+
 		c.conn.Close()
+		log.Infof("action: release_socket | result: success")
 
 		if err != nil {
 			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-                c.config.ID,
+				c.config.ID,
 				err,
 			)
 			return
 		}
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-            c.config.ID,
-            msg,
-        )
 
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
-	}
+		log.Infof("action: finished | result: success | client_id: %v", c.config.ID)
 
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+        connFinishChan <- true
+        wg.Done()
+    }()
+    select {
+    case <-signalChan:
+        c.conn.Close()
+    case <-connFinishChan:
+        c.conn.Close()
+    }
+	log.Infof("action: release_socket | result: success")
+    wg.Wait()
 }
