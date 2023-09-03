@@ -58,11 +58,11 @@ class Server:
             addr = client_sock.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
             self.__handle_message(client_sock, msg)
+            client_sock.close()
             
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
-            client_sock.close()
+
 
     def __handle_message(self, client_sock, msg):
         type_msg = msg[0]
@@ -91,7 +91,7 @@ class Server:
             data+= num_data_size
             data+= num_data
             send_msg(client_sock,data, OK_TYPE)
-            logging.info(f'action: apuesta_almacenada | result: success | dni: ${document} | numero: ${number}')
+            logging.info(f'action: apuesta_almacenada | result: success | dni: {document} | numero: {number}')
 	
 
 

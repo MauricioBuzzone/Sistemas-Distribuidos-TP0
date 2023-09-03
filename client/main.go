@@ -5,8 +5,7 @@ import (
 	"strings"
 	"time"	
 	"os"
-    "os/signal"
-    "syscall"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -122,13 +121,5 @@ func main() {
 
 	client := common.NewClient(clientConfig)
 
-	// Create a channel to signal the client to exit gracefully
-	signalChannel := make(chan os.Signal, 1)
-	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-
-	go closeClient(client, signalChannel)
-
 	client.StartClientLoop()
-	close(signalChannel)
-	log.Infof("action: release_signal_channel| result: success")
 }

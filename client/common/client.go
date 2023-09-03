@@ -4,6 +4,10 @@ import (
 	"net"
 	"time"
 	"os"
+	"os/signal"
+    "syscall"
+    "sync"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -36,7 +40,6 @@ func NewClient(config ClientConfig) *Client {
 func (c *Client) createClientSocket() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
-		c.conn.Close()
 		log.Fatalf(
 	        "action: connect | result: fail | client_id: %v | error: %v",
 			c.config.ID,
@@ -56,38 +59,54 @@ func (c *Client) CloseSocket() {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
+	signalChan := make(chan os.Signal, 1)
+    signal.Notify(signalChan, syscall.SIGTERM)
+    var wg sync.WaitGroup
+    connFinishChan := make(chan bool)
+    c.createClientSocket()
+    wg.Add(1)
 
-	// Create the connection the server in every loop iteration. Send an
-	c.createClientSocket()
-	
-	bet := Bet{
+    go func() {
+        bet := Bet{
 		ID:            c.config.ID,
 		FirstName:     os.Getenv("NOMBRE"),
 		LastName:	   os.Getenv("APELLIDO"),
 		Document:	   os.Getenv("DOCUMENTO"),
 		Birthdate:	   os.Getenv("NACIMIENTO"),
 		Number:        os.Getenv("NUMERO"),
-	}
-	data := serializeBet(bet)
-	sendBet(c.conn, data)
+		}
+		data := serializeBet(bet)
+		sendBet(c.conn, data)
 
-	msg, err := readMessage(c.conn)
-	
-	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
-		msg[1],
-		msg[2],
-	)
-
-	c.conn.Close()
-	log.Infof("action: release_socket | result: success")
-
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
+		log.Infof("action: esperando_confirmacion | result: in_progress")
+		msg, err := readMessage(c.conn)
+		log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
+			msg[1],
+			msg[2],
 		)
-		return
-	}
 
-	log.Infof("action: finished | result: success | client_id: %v", c.config.ID)
+		c.conn.Close()
+		log.Infof("action: release_socket | result: success")
+
+		if err != nil {
+			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			return
+		}
+
+		log.Infof("action: finished | result: success | client_id: %v", c.config.ID)
+
+        connFinishChan <- true
+        wg.Done()
+    }()
+    select {
+    case <-signalChan:
+        c.conn.Close()
+    case <-connFinishChan:
+        c.conn.Close()
+    }
+	log.Infof("action: release_socket | result: success")
+    wg.Wait()
 }
