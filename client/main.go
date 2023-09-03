@@ -7,7 +7,6 @@ import (
 	"os"
     "os/signal"
     "syscall"
-	"sync"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -90,7 +89,7 @@ func PrintConfig(v *viper.Viper) {
     )
 }
 
-func closeClient(client *common.Client, signalChannel chan os.Signal, wg sync.WaitGroup) {
+func closeClient(client *common.Client, signalChannel chan os.Signal) {
 	<- signalChannel
 	log.Infof("action: stop_client | result: in_progress")
 	client.CloseSocket()
@@ -98,7 +97,6 @@ func closeClient(client *common.Client, signalChannel chan os.Signal, wg sync.Wa
 	close(signalChannel)
 	log.Infof("action: release_signal_channel| result: success")
 	log.Infof("action: stop_client | result: success")
-	wg.Done()
 }
 
 func main() {
@@ -127,11 +125,10 @@ func main() {
 	// Create a channel to signal the client to exit gracefully
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-	var wg sync.WaitGroup
-	wg.Add(1)
 
-	go closeClient(client, signalChannel, wg)
+	go closeClient(client, signalChannel)
 
 	client.StartClientLoop()
-	wg.Wait()
+	close(signalChannel)
+	log.Infof("action: release_signal_channel| result: success")
 }

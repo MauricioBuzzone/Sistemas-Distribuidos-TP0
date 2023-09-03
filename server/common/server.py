@@ -1,6 +1,10 @@
 import socket
 import logging
 import signal
+import struct
+from common.protocol import recv_msg, send_msg
+from common.protocol import BET_TYPE, OK_TYPE
+from common.utils import Bet, store_bets
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -50,16 +54,48 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
+            msg = recv_msg(client_sock)
             addr = client_sock.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            self.__handle_message(client_sock, msg)
+            
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
+
+    def __handle_message(self, client_sock, msg):
+        type_msg = msg[0]
+
+        if type_msg == BET_TYPE:
+            id = msg[1]
+            firstName = msg[2]
+            lastName = msg[3]
+            document = msg[4]
+            birthdate = msg[5]
+            number = msg[6]
+            
+            bet = Bet(id,firstName,lastName,document,birthdate,number)
+            store_bets([bet])
+
+            # Send the type of message
+            data = b''
+            doc_data = document.encode('utf-8')
+            doc_data_size = struct.pack('!i', len(doc_data))
+
+            num_data = number.encode('utf-8')
+            num_data_size = struct.pack('!i', len(num_data))
+
+            data+= doc_data_size
+            data+= doc_data
+            data+= num_data_size
+            data+= num_data
+            send_msg(client_sock,data, OK_TYPE)
+            logging.info(f'action: apuesta_almacenada | result: success | dni: ${document} | numero: ${number}')
+	
+
+
+
 
     def __accept_new_connection(self):
         """

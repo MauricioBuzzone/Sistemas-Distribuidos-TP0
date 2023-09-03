@@ -1,10 +1,9 @@
 package common
 
 import (
-	"bufio"
 	"net"
 	"time"
-
+	"os"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -58,31 +57,27 @@ func (c *Client) CloseSocket() {
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 
-	// Send messages
 	// Create the connection the server in every loop iteration. Send an
-	log.Infof("Llegue hasta aca ")
-	
 	c.createClientSocket()
 	
-	log.Infof("Llegue hasta aca ")
 	bet := Bet{
 		ID:            c.config.ID,
-		FirstName:     "FirstName",
-		LastName:	   "LastName",
-		Document:	   "Document",
-		Birthdate:	   "Birthdate",
-		Number:        "Number",
+		FirstName:     os.Getenv("NOMBRE"),
+		LastName:	   os.Getenv("APELLIDO"),
+		Document:	   os.Getenv("DOCUMENTO"),
+		Birthdate:	   os.Getenv("NACIMIENTO"),
+		Number:        os.Getenv("NUMERO"),
 	}
-	
-	sendBet(c.conn, bet)
+	data := serializeBet(bet)
+	sendBet(c.conn, data)
 
-
-	log.Infof("action: apuesta_enviada | result: success | dni: %v  | numero: %v",
-	bet.Document,
-	bet.Number,
-)
-	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+	msg, err := readMessage(c.conn)
 	
+	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
+		msg[1],
+		msg[2],
+	)
+
 	c.conn.Close()
 	log.Infof("action: release_socket | result: success")
 
@@ -93,10 +88,6 @@ func (c *Client) StartClientLoop() {
 		)
 		return
 	}
-	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-		c.config.ID,
-		msg,
-	)
 
 	log.Infof("action: finished | result: success | client_id: %v", c.config.ID)
 }
