@@ -39,6 +39,7 @@ for ((i = 1; i <= $1; i++)); do
       - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/dataset/agency-$i.csv:/agency-$i.csv
     networks:
       - testing_net
     depends_on:

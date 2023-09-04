@@ -3,9 +3,9 @@ import logging
 import signal
 import struct
 from common.protocol import recv_msg, send_msg
-from common.protocol import BET_TYPE, OK_TYPE
+from common.protocol import BET_TYPE, OK_TYPE, ERR_TYPE, END_TYPE
 from common.utils import Bet, store_bets
-
+from common.betParser import parser_bet
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
@@ -54,10 +54,10 @@ class Server:
         client socket will also be closed
         """
         try:
-            msg = recv_msg(client_sock)
-            addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            self.__handle_message(client_sock, msg)
+            client_sending = True
+            while client_sending:
+                msg = recv_msg(client_sock)
+                client_sending = self.__handle_message(client_sock, msg)
             client_sock.close()
             
         except OSError as e:
@@ -66,35 +66,28 @@ class Server:
 
     def __handle_message(self, client_sock, msg):
         type_msg = msg[0]
-
         if type_msg == BET_TYPE:
-            id = msg[1]
-            firstName = msg[2]
-            lastName = msg[3]
-            document = msg[4]
-            birthdate = msg[5]
-            number = msg[6]
-            
-            bet = Bet(id,firstName,lastName,document,birthdate,number)
-            store_bets([bet])
+            try:
+                bets = parser_bet(msg[1:])
+                store_bets(bets)
+                logging.info(f'action: apuestas_almacenadas: result: sucess | amount: {len(bets)}')
 
-            # Send the type of message
-            data = b''
-            doc_data = document.encode('utf-8')
-            doc_data_size = struct.pack('!i', len(doc_data))
+                # Send message to notify the client
+                data = b''
+                amount_data = str(len(bets)).encode('utf-8')
+                amount_data_size = struct.pack('!i',len(amount_data))
+                data += amount_data_size
+                data += amount_data
+                send_msg(client_sock,data, OK_TYPE)
+                return True
 
-            num_data = number.encode('utf-8')
-            num_data_size = struct.pack('!i', len(num_data))
+            except OSError as e:
+                logging.error("action: error_bets | result: fail | error: {e}")
+                # Send message to notify the client
+                send_msg(client_sock,b'', ERR_TYPE)
 
-            data+= doc_data_size
-            data+= doc_data
-            data+= num_data_size
-            data+= num_data
-            send_msg(client_sock,data, OK_TYPE)
-            logging.info(f'action: apuesta_almacenada | result: success | dni: {document} | numero: {number}')
-	
-
-
+        if type_msg == END_TYPE:
+            return False
 
 
     def __accept_new_connection(self):

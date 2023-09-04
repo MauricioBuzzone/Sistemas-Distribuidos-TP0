@@ -13,15 +13,15 @@ type Bet struct {
     Number        string
 }
 
-func serializeBet(bet Bet) []byte {
-    serialized := []byte{}
-	serialized = append(serialized, serializeField(bet.ID)...)
-    serialized = append(serialized, serializeField(bet.FirstName)...)
-	serialized = append(serialized, serializeField(bet.LastName)...)
-	serialized = append(serialized, serializeField(bet.Document)...)
-	serialized = append(serialized, serializeField(bet.Birthdate)...)
-	serialized = append(serialized, serializeField(bet.Number)...)
-	return serialized
+func serializeBet(firstName string,lastName string,document string,birthdate string,number string) []byte {
+
+	data := []byte{}
+    data = append(data, serializeField(firstName)...)
+	data = append(data, serializeField(lastName)...)
+	data = append(data, serializeField(document)...)
+	data = append(data, serializeField(birthdate)...)
+	data = append(data, serializeField(number)...)
+	return data
 }
 
 func serializeField(field string) []byte {

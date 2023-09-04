@@ -2,11 +2,13 @@ package common
 
 import (
 	"net"
-	"time"
 	"os"
+	"io"
 	"os/signal"
     "syscall"
     "sync"
+	"encoding/csv"
+    "fmt"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -15,8 +17,8 @@ import (
 type ClientConfig struct {
 	ID            string
 	ServerAddress string
-	LoopLapse     time.Duration
-	LoopPeriod    time.Duration
+	MaxPackageSize int
+	BatchSize      int
 }
 
 // Client Entity that encapsulates how
@@ -67,38 +69,13 @@ func (c *Client) StartClientLoop() {
     wg.Add(1)
 
     go func() {
-        bet := Bet{
-		ID:            c.config.ID,
-		FirstName:     os.Getenv("NOMBRE"),
-		LastName:	   os.Getenv("APELLIDO"),
-		Document:	   os.Getenv("DOCUMENTO"),
-		Birthdate:	   os.Getenv("NACIMIENTO"),
-		Number:        os.Getenv("NUMERO"),
-		}
-		data := serializeBet(bet)
-		sendBet(c.conn, data)
-
-		log.Infof("action: esperando_confirmacion | result: in_progress")
-		msg, err := readMessage(c.conn)
-		log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
-			msg[1],
-			msg[2],
-		)
-
+        
+		c.sendBets()
 		c.conn.Close()
 		log.Infof("action: release_socket | result: success")
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-			return
-		}
-
-		log.Infof("action: finished | result: success | client_id: %v", c.config.ID)
-
-        connFinishChan <- true
+		log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
+	
+		connFinishChan <- true
         wg.Done()
     }()
     select {
@@ -107,6 +84,70 @@ func (c *Client) StartClientLoop() {
     case <-connFinishChan:
         c.conn.Close()
     }
-	log.Infof("action: release_socket | result: success")
     wg.Wait()
+}
+
+
+func (c *Client) sendBets() error {
+    filename := fmt.Sprintf("agency-%s.csv", c.config.ID)
+    file, err := os.Open(filename)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+
+    reader := csv.NewReader(file)
+    reader.Comma = ','
+    reader.FieldsPerRecord = 5
+
+	betsAmount := 0
+	sizePackage := 0
+	data := serializeField(c.config.ID)
+	for {
+        betData, err := reader.Read()
+        if err != nil {
+            if err == io.EOF {
+                break
+            }
+            return err
+        }
+		firstName:= betData[0]
+        lastName:=  betData[1]
+        document:=  betData[2]
+        birthdate:= betData[3]    
+		number:=    betData[4]
+		
+		bet := serializeBet(firstName,lastName,document,birthdate,number)
+		
+		// Rise the max package size or the batch is complete
+		if sizePackage + len(bet) > c.config.MaxPackageSize || betsAmount == c.config.BatchSize {
+			
+			err := sendMessage(c.conn, data, BET)
+			if err != nil{
+				log.Infof("action: send_batch | result: fail ")
+				return err
+			}
+			
+			msg, err := readMessage(c.conn)
+			if err != nil{
+				log.Infof("action: recv_confirm | result: fail ")
+				return err
+			}
+			log.Infof("action: apuestas_enviadas | result: success | amount: %v",
+			msg[1],
+			)
+			data = serializeField(c.config.ID)
+			betsAmount = 0
+			sizePackage = 0
+		}
+		data = append(data,bet...)
+		betsAmount +=1
+		sizePackage += len(bet)
+    }
+	err = sendMessage(c.conn, data, END)
+	if err != nil{
+		log.Infof("action: send_final_message | result: fail ")
+		return err
+	}
+	return nil
 }

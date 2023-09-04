@@ -3,6 +3,7 @@ import struct
 
 LENGHT = 4
 BET_TYPE = 'B'
+END_TYPE = 'F'
 OK_TYPE = '0'
 ERR_TYPE = 'E'
 WIN_TYPE = 'W'

@@ -21,6 +21,7 @@ services:
       - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/dataset/agency-1.csv:/agency-1.csv
     networks:
       - testing_net
     depends_on:
@@ -34,6 +35,7 @@ services:
       - CLI_LOG_LEVEL=DEBUG
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/dataset/agency-2.csv:/agency-2.csv
     networks:
       - testing_net
     depends_on:
