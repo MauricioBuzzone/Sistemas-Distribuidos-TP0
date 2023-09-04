@@ -13,6 +13,7 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._server_on = True
+        self._bets_stored = 0
         signal.signal(signal.SIGINT, self.__handle_signal)
         signal.signal(signal.SIGTERM, self.__handle_signal)
 
@@ -73,6 +74,7 @@ class Server:
                 bets = parser_bet(msg[1:])
                 store_bets(bets)
                 logging.info(f'action: apuestas_almacenadas: result: sucess | amount: {len(bets)}')
+                self._bets_stored += len(bets)
 
                 # Send message to notify the client
                 data = b''
@@ -111,4 +113,5 @@ class Server:
                 logging.error(f'action: accept_connections | result: fail | error: {e}')
             else:
                 logging.info(f'action: stop_accept_connections | result: success')
+                logging.info(f'action: bets_stored | amount: {self._bets_stored}')
             return None
