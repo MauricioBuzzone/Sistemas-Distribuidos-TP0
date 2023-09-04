@@ -42,11 +42,7 @@ func NewClient(config ClientConfig) *Client {
 func (c *Client) createClientSocket() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
-		log.Fatalf(
-	        "action: connect | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		return err
 	}
 	c.conn = conn
 	return nil
@@ -65,7 +61,17 @@ func (c *Client) StartClientLoop() {
     signal.Notify(signalChan, syscall.SIGTERM)
     var wg sync.WaitGroup
     connFinishChan := make(chan bool)
-    c.createClientSocket()
+    
+	
+	err := c.createClientSocket()
+	if err != nil{
+		log.Fatalf(
+	        "action: connect | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return
+	}
     wg.Add(1)
 
     go func() {
@@ -123,7 +129,10 @@ func (c *Client) sendBets() error {
 		// Rise the max package size or the batch is complete
 		if sizePackage + len(bet) > c.config.MaxPackageSize || betsAmount == c.config.BatchSize {
 			
-			c.sendBatch(data)
+			err = c.sendBatch(data)
+			if err != nil{
+				return err
+			}
 			data = serializeField(c.config.ID)
 			betsAmount = 0
 			sizePackage = 0
