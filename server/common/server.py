@@ -58,10 +58,12 @@ class Server:
             while client_sending:
                 msg = recv_msg(client_sock)
                 client_sending = self.__handle_message(client_sock, msg)
-            client_sock.close()
+            
             
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
+        finally:
+            client_sock.close()
 
 
     def __handle_message(self, client_sock, msg):
