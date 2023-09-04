@@ -107,9 +107,10 @@ func (c *Client) sendBets() error {
         betData, err := reader.Read()
         if err != nil {
             if err == io.EOF {
-                break
+				c.sendBatch(data)
+				break
             }
-            return err
+			return err
         }
 		firstName:= betData[0]
         lastName:=  betData[1]
@@ -122,20 +123,7 @@ func (c *Client) sendBets() error {
 		// Rise the max package size or the batch is complete
 		if sizePackage + len(bet) > c.config.MaxPackageSize || betsAmount == c.config.BatchSize {
 			
-			err := sendMessage(c.conn, data, BET)
-			if err != nil{
-				log.Infof("action: send_batch | result: fail ")
-				return err
-			}
-			
-			msg, err := readMessage(c.conn)
-			if err != nil{
-				log.Infof("action: recv_confirm | result: fail ")
-				return err
-			}
-			log.Infof("action: apuestas_enviadas | result: success | amount: %v",
-			msg[1],
-			)
+			c.sendBatch(data)
 			data = serializeField(c.config.ID)
 			betsAmount = 0
 			sizePackage = 0
@@ -149,5 +137,24 @@ func (c *Client) sendBets() error {
 		log.Infof("action: send_final_message | result: fail ")
 		return err
 	}
+	return nil
+}
+
+func (c *Client) sendBatch(data []byte) error {
+	err := sendMessage(c.conn, data, BET)
+	if err != nil{
+		log.Infof("action: send_batch | result: fail ")
+		return err
+	}
+	
+	msg, err := readMessage(c.conn)
+	if err != nil{
+		log.Infof("action: recv_confirm | result: fail ")
+		return err
+	}
+	log.Infof("action: apuestas_enviadas | result: success | amount: %v",
+	msg[1],
+	)
+
 	return nil
 }

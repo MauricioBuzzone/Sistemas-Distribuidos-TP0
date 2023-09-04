@@ -42,7 +42,7 @@ class Server:
             logging.info(f'action: shutdown_socket | result: success')
             self._server_socket.close()
             logging.info(f'action: release_socket | result: success')
-
+            
         except OSError as e:  
             logging.error(f'action: stop_server | result: fail | error: {e}')
 
@@ -72,6 +72,7 @@ class Server:
             try:
                 bets = parser_bet(msg[1:])
                 store_bets(bets)
+                self._bets_stored +=len(bets)
                 logging.info(f'action: apuestas_almacenadas: result: sucess | amount: {len(bets)}')
 
                 # Send message to notify the client
