@@ -72,7 +72,6 @@ class Server:
             try:
                 bets = parser_bet(msg[1:])
                 store_bets(bets)
-                self._bets_stored +=len(bets)
                 logging.info(f'action: apuestas_almacenadas: result: sucess | amount: {len(bets)}')
 
                 # Send message to notify the client
