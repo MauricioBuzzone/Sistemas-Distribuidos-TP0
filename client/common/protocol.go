@@ -6,8 +6,12 @@ import(
 )
 
 const LENGTH = 4
-const BET = 'B'
-const END = 'F'
+const BET_TYPE = 'B'
+const END_TYPE = 'F'
+const OK_TYPE = '0'
+const ERR_TYPE = 'E'
+const WIN_TYPE = 'W'
+const CHECK_WIN_TYPE = 'Q'
 
 func sendMessage(conn net.Conn, msj []byte, typeMsg byte) error {
 	// Send the size of total msj

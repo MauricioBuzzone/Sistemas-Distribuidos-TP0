@@ -6,9 +6,9 @@ import (
 	"io"
 	"os/signal"
     "syscall"
-    "sync"
 	"encoding/csv"
     "fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -25,6 +25,7 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
+	on bool
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -32,6 +33,7 @@ type Client struct {
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
+		on: true,
 	}
 	return client
 }
@@ -48,21 +50,19 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-// Close the client socket
-func (c *Client) CloseSocket() {	
-	if c.conn != nil {
-		c.conn.Close()
-	}
-}
-
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	signalChan := make(chan os.Signal, 1)
     signal.Notify(signalChan, syscall.SIGTERM)
-    var wg sync.WaitGroup
-    connFinishChan := make(chan bool)
-    
-	
+
+    go func() {
+		<-signalChan
+        c.conn.Close()
+		close(signalChan)
+		c.on = false
+    }()
+
+	// The client sends all the bets to the servers
 	err := c.createClientSocket()
 	if err != nil{
 		log.Fatalf(
@@ -72,27 +72,63 @@ func (c *Client) StartClientLoop() {
 		)
 		return
 	}
-    wg.Add(1)
+	c.sendBets()
+	c.conn.Close()
+	log.Infof("action: release_socket | result: success")
+	log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
 
-    go func() {
-        
-		c.sendBets()
-		c.conn.Close()
-		log.Infof("action: release_socket | result: success")
-		log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
-	
-		connFinishChan <- true
-        wg.Done()
-    }()
-    select {
-    case <-signalChan:
-        c.conn.Close()
-    case <-connFinishChan:
-        c.conn.Close()
-    }
-    wg.Wait()
+
+	// The client inquires about the lottery winners. 
+	// In case of not receiving a response, it will 
+	// retry the inquiry later (exponential backoff).
+	c.checkWinners()
+	c.conn.Close()
 }
 
+func (c *Client)checkWinners() {
+	waitingTime := 1
+	data := serializeField(c.config.ID)
+	for {
+		err := c.createClientSocket()
+		if err != nil{
+			log.Fatalf("action: connect | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			return
+		}
+
+		log.Infof("action: consulta_ganadores | result: in_progress")
+		err = sendMessage(c.conn, data, CHECK_WIN_TYPE)
+		if err != nil{
+			log.Infof("action: check_winners | result: fail | %v",err)
+			return
+		}
+	
+		msg, err := readMessage(c.conn)
+		log.Infof("action: check_winners | %v",msg)
+		if err != nil{
+			log.Infof("action:  | result: fail | %v",err)
+			return
+		}
+
+		if msg[0] == string(CHECK_WIN_TYPE) {
+			// The bets from the other agencies are not loaded yet, waiting to check again.
+			log.Infof("action: consulta_ganadores | result: in_progress | waitingTime: %v",waitingTime)
+			time.Sleep(time.Duration(waitingTime) * time.Second)
+			waitingTime = waitingTime * 2
+		
+		} else if msg[0] == string(WIN_TYPE) {
+			log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v",
+			len(msg[1:]),
+			)
+			break
+		
+		} else{
+			log.Fatalf("action: check_winners | result: fail | msg_server_type: %v",msg[0])
+		}
+	}
+}
 
 func (c *Client) sendBets() error {
     filename := fmt.Sprintf("agency-%s.csv", c.config.ID)
@@ -109,7 +145,7 @@ func (c *Client) sendBets() error {
 	betsAmount := 0
 	sizePackage := 0
 	data := serializeField(c.config.ID)
-	for {
+	for c.on{
         betData, err := reader.Read()
         if err != nil {
             if err == io.EOF {
@@ -141,7 +177,7 @@ func (c *Client) sendBets() error {
 		betsAmount +=1
 		sizePackage += len(bet)
     }
-	err = sendMessage(c.conn, data, END)
+	err = sendMessage(c.conn, data, END_TYPE)
 	if err != nil{
 		log.Infof("action: send_final_message | result: fail ")
 		return err
@@ -150,7 +186,7 @@ func (c *Client) sendBets() error {
 }
 
 func (c *Client) sendBatch(data []byte) error {
-	err := sendMessage(c.conn, data, BET)
+	err := sendMessage(c.conn, data, BET_TYPE)
 	if err != nil{
 		log.Infof("action: send_batch | result: fail ")
 		return err

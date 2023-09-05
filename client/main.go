@@ -3,9 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
-	"os"
 
-	//"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -75,16 +73,6 @@ func PrintConfig(v *viper.Viper) {
 	    v.GetInt("protocol.maxPackageSize"),
 	    v.GetInt("batch.bets"),
 	    v.GetString("log.level"))
-}
-
-func closeClient(client *common.Client, signalChannel chan os.Signal) {
-	<- signalChannel
-	log.Infof("action: stop_client | result: in_progress")
-	client.CloseSocket()
-	log.Infof("action: release_socket | result: success")
-	close(signalChannel)
-	log.Infof("action: release_signal_channel| result: success")
-	log.Infof("action: stop_client | result: success")
 }
 
 func main() {

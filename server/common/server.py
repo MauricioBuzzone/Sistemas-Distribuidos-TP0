@@ -3,9 +3,9 @@ import logging
 import signal
 import struct
 from common.protocol import recv_msg, send_msg
-from common.protocol import BET_TYPE, OK_TYPE, ERR_TYPE, END_TYPE
+from common.protocol import BET_TYPE, OK_TYPE, ERR_TYPE, END_TYPE, WIN_TYPE,CHECK_WIN_TYPE
 from common.utils import Bet, store_bets
-from common.betParser import parser_bet
+from common.betParser import parser_bet, get_winners
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
@@ -14,6 +14,7 @@ class Server:
         self._server_socket.listen(listen_backlog)
         self._server_on = True
         self._bets_stored = 0
+        self._agency_loaded = 0
         signal.signal(signal.SIGINT, self.__handle_signal)
         signal.signal(signal.SIGTERM, self.__handle_signal)
 
@@ -91,7 +92,20 @@ class Server:
                 send_msg(client_sock,b'', ERR_TYPE)
 
         if type_msg == END_TYPE:
+            self._agency_loaded +=1
             return False
+        
+        if type_msg == CHECK_WIN_TYPE:
+            logging.info(f'action: consulta_ganadores | agencia: {msg[1]}')
+            if self._agency_loaded == 5:
+                data = get_winners(msg[1])
+                send_msg(client_sock,data, WIN_TYPE)
+            else:
+                send_msg(client_sock,b'', CHECK_WIN_TYPE)
+                
+            return False
+
+        return True
 
 
     def __accept_new_connection(self):
@@ -108,10 +122,10 @@ class Server:
             c, addr = self._server_socket.accept()
             logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
             return c
-        except OSError as e:
+        except:
             if self._server_on:
-                logging.error(f'action: accept_connections | result: fail | error: {e}')
+                logging.error(f'action: accept_connections | result: fail')
             else:
                 logging.info(f'action: stop_accept_connections | result: success')
                 logging.info(f'action: bets_stored | amount: {self._bets_stored}')
-            return None
+            return

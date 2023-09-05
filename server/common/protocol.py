@@ -7,6 +7,7 @@ END_TYPE = 'F'
 OK_TYPE = '0'
 ERR_TYPE = 'E'
 WIN_TYPE = 'W'
+CHECK_WIN_TYPE = 'Q'
 
 def read_all(client_sock, bytes_to_read):
     """
