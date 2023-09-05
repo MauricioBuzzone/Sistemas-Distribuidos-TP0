@@ -6,7 +6,6 @@ import (
 	"io"
 	"os/signal"
     "syscall"
-    "sync"
 	"encoding/csv"
     "fmt"
 
@@ -25,6 +24,7 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
+	on bool
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -32,6 +32,8 @@ type Client struct {
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
+		on: true,
+		conn: nil,
 	}
 	return client
 }
@@ -59,10 +61,18 @@ func (c *Client) CloseSocket() {
 func (c *Client) StartClientLoop() {
 	signalChan := make(chan os.Signal, 1)
     signal.Notify(signalChan, syscall.SIGTERM)
-    var wg sync.WaitGroup
-    connFinishChan := make(chan bool)
-    
-	
+
+	go func() {
+		<-signalChan
+		if c.conn != nil{
+			c.conn.Close()
+			log.Infof("action: release_socket | result: success")
+		}
+		close(signalChan)
+		c.on = false
+    }()
+
+
 	err := c.createClientSocket()
 	if err != nil{
 		log.Fatalf(
@@ -72,25 +82,10 @@ func (c *Client) StartClientLoop() {
 		)
 		return
 	}
-    wg.Add(1)
-
-    go func() {
-        
-		c.sendBets()
-		c.conn.Close()
-		log.Infof("action: release_socket | result: success")
-		log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
-	
-		connFinishChan <- true
-        wg.Done()
-    }()
-    select {
-    case <-signalChan:
-        c.conn.Close()
-    case <-connFinishChan:
-        c.conn.Close()
-    }
-    wg.Wait()
+	c.sendBets()
+	c.conn.Close()
+	log.Infof("action: release_socket | result: success")
+	log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
 }
 
 
