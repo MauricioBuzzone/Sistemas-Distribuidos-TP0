@@ -34,6 +34,7 @@ func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
 		on: true,
+		conn: nil,
 	}
 	return client
 }
@@ -57,7 +58,9 @@ func (c *Client) StartClientLoop() {
 
     go func() {
 		<-signalChan
-        c.conn.Close()
+		if c.conn != nil{
+			c.conn.Close()
+		}
 		close(signalChan)
 		c.on = false
     }()
@@ -75,7 +78,6 @@ func (c *Client) StartClientLoop() {
 	c.sendBets()
 	c.conn.Close()
 	log.Infof("action: release_socket | result: success")
-	log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
 
 
 	// The client inquires about the lottery winners. 
@@ -83,6 +85,8 @@ func (c *Client) StartClientLoop() {
 	// retry the inquiry later (exponential backoff).
 	c.checkWinners()
 	c.conn.Close()
+	log.Infof("action: release_socket | result: success")
+	log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
 }
 
 func (c *Client)checkWinners() {
