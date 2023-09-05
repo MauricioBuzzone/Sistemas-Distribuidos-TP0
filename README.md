@@ -5,7 +5,7 @@ Modificar el cliente y el servidor para lograr que realizar cambios en el archiv
 
 
 #### Solución:
-Se modifica el DockerCompose, agregando a los archivos de configuración como volumenes para el servidor y el cliente respectivamente.
+Se modifica el DockerCompose, agregando los archivos de configuración como volumenes para el servidor y el cliente respectivamente.
 
 
 ```
