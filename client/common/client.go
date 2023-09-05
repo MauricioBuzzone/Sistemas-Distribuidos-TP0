@@ -78,6 +78,9 @@ loop:
 			log.Infof("action: release_channel | result: success | client_id: %v",
 				c.config.ID,
 			)
+			c.conn.Close()
+			log.Infof("action: release_socket | result: success")
+			
 			break loop
 		
 		default:
