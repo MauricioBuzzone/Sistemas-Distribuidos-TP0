@@ -58,43 +58,19 @@ func (c *Client) StartClientLoop() {
 
     go func() {
 		<-signalChan
-		if c.conn != nil{
-			log.Infof("action: release_socket | result: success")
-			c.conn.Close()
-			c.conn = nil
-		}
 		log.Infof("action: release_signal_chan | result: success")
 		close(signalChan)
 		c.on = false
     }()
 
 	// The client sends all the bets to the servers
-	err := c.createClientSocket()
-	if err != nil{
-		log.Fatalf(
-	        "action: connect | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return
-	}
 	c.sendBets()
-	if c.conn != nil{
-		log.Infof("action: release_socket | result: success")
-		c.conn.Close()
-		c.conn = nil
-	}
-
 
 	// The client inquires about the lottery winners. 
 	// In case of not receiving a response, it will 
 	// retry the inquiry later (exponential backoff).
 	c.checkWinners()
-	if c.conn != nil{
-		log.Infof("action: release_socket | result: success")
-		c.conn.Close()
-		c.conn = nil
-	}
+
 	log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
 }
 
@@ -114,16 +90,20 @@ func (c *Client)checkWinners() {
 		log.Infof("action: consulta_ganadores | result: in_progress")
 		err = sendMessage(c.conn, data, CHECK_WIN_TYPE)
 		if err != nil{
+			c.conn.Close()
 			log.Infof("action: check_winners | result: fail | %v",err)
 			return
 		}
 	
 		msg, err := readMessage(c.conn)
-		
 		if err != nil{
+			c.conn.Close()
 			log.Infof("action:  | result: fail | %v",err)
 			return
 		}
+
+		c.conn.Close()
+		log.Infof("action: release_socket | result: success")
 
 		if msg[0] == string(CHECK_WIN_TYPE) {
 			// The bets from the other agencies are not loaded yet, waiting to check again.
@@ -145,9 +125,21 @@ func (c *Client)checkWinners() {
 }
 
 func (c *Client) sendBets() error {
+
+	err := c.createClientSocket()
+	if err != nil{
+		log.Fatalf(
+	        "action: connect | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+
     filename := fmt.Sprintf("agency-%s.csv", c.config.ID)
     file, err := os.Open(filename)
     if err != nil {
+		c.conn.Close()
         return err
     }
     defer file.Close()
@@ -166,6 +158,7 @@ func (c *Client) sendBets() error {
 				c.sendBatch(data)
 				break
             }
+			c.conn.Close()
 			return err
         }
 		firstName:= betData[0]
@@ -181,6 +174,7 @@ func (c *Client) sendBets() error {
 			
 			err = c.sendBatch(data)
 			if err != nil{
+				c.conn.Close()
 				return err
 			}
 			data = serializeField(c.config.ID)
@@ -194,9 +188,14 @@ func (c *Client) sendBets() error {
 	data = serializeField(c.config.ID)
 	err = sendMessage(c.conn, data, END_TYPE)
 	if err != nil{
+		c.conn.Close()
 		log.Infof("action: send_final_message | result: fail ")
 		return err
 	}
+
+	c.conn.Close()
+	log.Infof("action: release_socket | result: success")
+
 	return nil
 }
 
