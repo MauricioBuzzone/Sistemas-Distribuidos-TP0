@@ -44,8 +44,9 @@ def handle_winners(client_socket, agency_id, agency_register, agency_register_lo
     # the agency consults about the winners; if all are ready, the winners are sent
     ready = False
     logging.info(f'action: consulta_ganadores | agencia: {agency_id}')
-    agency_register_lock.acquire()
     bets_lock.acquire()
+    agency_register_lock.acquire()
+    
 
     ready = agency_register.finish()
     agency_register_lock.release()  
