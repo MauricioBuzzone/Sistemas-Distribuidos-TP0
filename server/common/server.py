@@ -28,8 +28,11 @@ class Server:
         finishes, servers starts to accept new connections again
         """
         workers = []
+
         while self._server_on:
             client_sock = self.__accept_new_connection()
+
+            recycling_threads(workers)
             worker = threading.Thread(
             target=handle_client_connection, args=(
                 client_sock, 
@@ -43,21 +46,17 @@ class Server:
             worker.join()
         logging.info(f'action: join_threads | result: success')
 
+        self._server_socket.close()
+        logging.info(f'action: release_server_socket | result: success')
 
     def __handle_signal(self, signum, frame):
         """
         Close server socket graceful
         """
         logging.info(f'action: stop_server | result: in_progress | singal {signum}')
-        try:
-            self._server_on = False
-            self._server_socket.shutdown(socket.SHUT_RDWR)
-            logging.info(f'action: shutdown_socket | result: success')
-            self._server_socket.close()
-            logging.info(f'action: release_socket | result: success')
-            
-        except OSError as e:  
-            logging.error(f'action: stop_server | result: fail | error: {e}')
+        self._server_on = False
+        self._server_socket.shutdown(socket.SHUT_RDWR)
+        logging.info(f'action: shutdown_socket | result: success')
 
 
     def __accept_new_connection(self):
@@ -80,3 +79,15 @@ class Server:
             else:
                 logging.info(f'action: stop_accept_connections | result: success')
             return
+        
+def recycling_threads(workers):
+    idler_workers = []
+    for w in workers:
+        if not w.is_alive():
+            idler_workers.append(w)
+
+    for w in idler_workers:
+        logging.info(f'action: recycling thread | result: success')
+        w.join()
+        workers.remove(w)
+    idler_workers.clear()

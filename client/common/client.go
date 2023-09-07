@@ -60,6 +60,7 @@ func (c *Client) StartClientLoop() {
 		<-signalChan
 		log.Infof("action: release_signal_chan | result: success")
 		close(signalChan)
+		log.Infof("action: stop_client | result: success")
 		c.on = false
     }()
 
