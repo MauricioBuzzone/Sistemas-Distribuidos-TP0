@@ -92,7 +92,7 @@ func (c *Client) StartClientLoop() {
 func (c *Client)checkWinners() {
 	waitingTime := 1
 	data := serializeField(c.config.ID)
-	for {
+	for c.on{
 		err := c.createClientSocket()
 		if err != nil{
 			log.Fatalf("action: connect | result: fail | client_id: %v | error: %v",
@@ -181,6 +181,7 @@ func (c *Client) sendBets() error {
 		betsAmount +=1
 		sizePackage += len(bet)
     }
+	data = serializeField(c.config.ID)
 	err = sendMessage(c.conn, data, END_TYPE)
 	if err != nil{
 		log.Infof("action: send_final_message | result: fail ")

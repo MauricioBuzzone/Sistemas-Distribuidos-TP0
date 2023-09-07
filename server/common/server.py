@@ -2,21 +2,29 @@ import socket
 import logging
 import signal
 import struct
+import threading
+
+from threading import Thread, Lock
 from common.protocol import recv_msg, send_msg
 from common.protocol import BET_TYPE, OK_TYPE, ERR_TYPE, END_TYPE, WIN_TYPE,CHECK_WIN_TYPE
 from common.utils import Bet, store_bets
 from common.betParser import parser_bet, get_winners
+from common.agencyRegister import AgencyRegister
+from common.handleClient import handle_client_connection
+
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-        self._server_on = True
-        self._bets_stored = 0
-        self._agency_loaded = 0
         signal.signal(signal.SIGINT, self.__handle_signal)
         signal.signal(signal.SIGTERM, self.__handle_signal)
+        self._server_on = True
+        self._agency_register = AgencyRegister(listen_backlog)
+        self._agency_register_lock = threading.Lock()
+        self._bets_lock = threading.Lock()
+
 
     def run(self):
         """
@@ -26,11 +34,22 @@ class Server:
         communication with a client. After client with communucation
         finishes, servers starts to accept new connections again
         """
-
+        workers = []
         while self._server_on:
             client_sock = self.__accept_new_connection()
-            if self._server_on:
-                self.__handle_client_connection(client_sock)
+
+            worker = threading.Thread(
+            target=handle_client_connection, args=(
+                client_sock, 
+                self._agency_register,
+                self._agency_register_lock,
+                self._bets_lock))
+            worker.start()
+            workers.append(worker)
+
+        for worker in workers:
+            worker.join()
+        logging.info(f'action: join_threads | result: success')
 
 
     def __handle_signal(self, signum, frame):
@@ -48,65 +67,6 @@ class Server:
         except OSError as e:  
             logging.error(f'action: stop_server | result: fail | error: {e}')
 
-    def __handle_client_connection(self, client_sock):
-        """
-        Read message from a specific client socket and closes the socket
-
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
-        """
-        try:
-            client_sending = True
-            while client_sending:
-                msg = recv_msg(client_sock)
-                client_sending = self.__handle_message(client_sock, msg)
-            
-            
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
-            client_sock.close()
-
-
-    def __handle_message(self, client_sock, msg):
-        type_msg = msg[0]
-        if type_msg == BET_TYPE:
-            try:
-                bets = parser_bet(msg[1:])
-                store_bets(bets)
-                logging.info(f'action: apuestas_almacenadas: result: sucess | amount: {len(bets)}')
-                self._bets_stored += len(bets)
-
-                # Send message to notify the client
-                data = b''
-                amount_data = str(len(bets)).encode('utf-8')
-                amount_data_size = struct.pack('!i',len(amount_data))
-                data += amount_data_size
-                data += amount_data
-                send_msg(client_sock,data, OK_TYPE)
-                return True
-
-            except OSError as e:
-                logging.error("action: error_bets | result: fail | error: {e}")
-                # Send message to notify the client
-                send_msg(client_sock,b'', ERR_TYPE)
-
-        if type_msg == END_TYPE:
-            self._agency_loaded +=1
-            return False
-        
-        if type_msg == CHECK_WIN_TYPE:
-            logging.info(f'action: consulta_ganadores | agencia: {msg[1]}')
-            if self._agency_loaded == 5:
-                data = get_winners(msg[1])
-                send_msg(client_sock,data, WIN_TYPE)
-            else:
-                send_msg(client_sock,b'', CHECK_WIN_TYPE)
-                
-            return False
-
-        return True
-
 
     def __accept_new_connection(self):
         """
@@ -122,10 +82,9 @@ class Server:
             c, addr = self._server_socket.accept()
             logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
             return c
-        except:
+        except OSError as e:
             if self._server_on:
                 logging.error(f'action: accept_connections | result: fail')
             else:
                 logging.info(f'action: stop_accept_connections | result: success')
-                logging.info(f'action: bets_stored | amount: {self._bets_stored}')
             return
