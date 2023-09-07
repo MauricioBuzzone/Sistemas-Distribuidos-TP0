@@ -298,6 +298,8 @@ Para que el servidor permita procesar mensajes en paralelo, se utilizaron thread
 
 A la hora de querer cerrar el servidor, inmediatamente no se aceptarán más conexiones, pero los clientes que estaban siendo atendidos no serán cerrados forzosamente.
 
+Para optimizar la utilización de recursos se aprovecha la oportunidad de una nueva conexión para reciclar los thread que ya finalizaron y no que hacer join a todos cuando se quiere cerrar el servidor.
+
 Existen dos elementos  compartidos que necesitan sincronización en el sistema:
 
 1. El acceso al archivo de apuestas del servidor con `load_bets` y `store_bets`, el cual es protegido por un lock.

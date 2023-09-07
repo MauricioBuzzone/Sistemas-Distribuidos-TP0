@@ -29,8 +29,11 @@ class Server:
         finishes, servers starts to accept new connections again
         """
         workers = []
+       
         while self._server_on:
             client_sock = self.__accept_new_connection()
+
+            recycling_threads(workers)
             worker = threading.Thread(
             target=handle_client_connection, args=(
                 client_sock, 
@@ -43,7 +46,6 @@ class Server:
         for worker in workers:
             worker.join()
         logging.info(f'action: join_threads | result: success')
-
 
     def __handle_signal(self, signum, frame):
         """
@@ -81,3 +83,15 @@ class Server:
             else:
                 logging.info(f'action: stop_accept_connections | result: success')
             return
+        
+def recycling_threads(workers):
+    idler_workers = []
+    for w in workers:
+        if not w.is_alive():
+            idler_workers.append(w)
+
+    for w in idler_workers:
+        logging.info(f'action: recycling thread | result: success')
+        w.join()
+        workers.remove(w)
+    idler_workers.clear()
