@@ -328,3 +328,7 @@ def handle_winners(client_socket, agency_id, agency_register, agency_register_lo
     return False
 
 ```
+
+#### Diagrama de Robustez
+
+![Diagrama](DiagramaRobustez.png)
