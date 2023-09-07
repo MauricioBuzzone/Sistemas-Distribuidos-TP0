@@ -3,10 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"	
-	"os"
 
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -33,8 +30,8 @@ func InitConfig() (*viper.Viper, error) {
 	// Add env variables supported
 	v.BindEnv("id")
 	v.BindEnv("server", "address")
-	v.BindEnv("loop", "period")
-	v.BindEnv("loop", "lapse")
+	v.BindEnv("protocol", "maxPackageSize")
+	v.BindEnv("batch", "bets")
 	v.BindEnv("log", "level")
 
 	// Try to read configuration from config file. If config file
@@ -44,15 +41,6 @@ func InitConfig() (*viper.Viper, error) {
 	v.SetConfigFile("./config.yaml")
 	if err := v.ReadInConfig(); err != nil {
 		fmt.Printf("Configuration could not be read from config file. Using env variables instead")
-	}
-
-	// Parse time.Duration variables and return an error if those variables cannot be parsed
-	if _, err := time.ParseDuration(v.GetString("loop.lapse")); err != nil {
-		return nil, errors.Wrapf(err, "Could not parse CLI_LOOP_LAPSE env var as time.Duration.")
-	}
-
-	if _, err := time.ParseDuration(v.GetString("loop.period")); err != nil {
-		return nil, errors.Wrapf(err, "Could not parse CLI_LOOP_PERIOD env var as time.Duration.")
 	}
 
 	return v, nil
@@ -79,23 +67,12 @@ func InitLogger(logLevel string) error {
 // PrintConfig Print all the configuration parameters of the program.
 // For debugging purposes only
 func PrintConfig(v *viper.Viper) {
-	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_lapse: %v | loop_period: %v | log_level: %s",
+	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | max_package_size: %v | batch: %v | log_level: %s",
 	    v.GetString("id"),
 	    v.GetString("server.address"),
-	    v.GetDuration("loop.lapse"),
-	    v.GetDuration("loop.period"),
-	    v.GetString("log.level"),
-    )
-}
-
-func closeClient(client *common.Client, signalChannel chan os.Signal) {
-	<- signalChannel
-	log.Infof("action: stop_client | result: in_progress")
-	client.CloseSocket()
-	log.Infof("action: release_socket | result: success")
-	close(signalChannel)
-	log.Infof("action: release_signal_channel| result: success")
-	log.Infof("action: stop_client | result: success")
+	    v.GetInt("protocol.maxPackageSize"),
+	    v.GetInt("batch.bets"),
+	    v.GetString("log.level"))
 }
 
 func main() {
@@ -115,8 +92,8 @@ func main() {
 	clientConfig := common.ClientConfig{
 		ServerAddress: v.GetString("server.address"),
 		ID:            v.GetString("id"),
-		LoopLapse:     v.GetDuration("loop.lapse"),
-		LoopPeriod:    v.GetDuration("loop.period"),
+		MaxPackageSize:v.GetInt("protocol.maxPackageSize"),
+		BatchSize:     v.GetInt("batch.bets"),
 	}
 
 	client := common.NewClient(clientConfig)

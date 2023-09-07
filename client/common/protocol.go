@@ -6,8 +6,14 @@ import(
 )
 
 const LENGTH = 4
+const BET_TYPE = 'B'
+const END_TYPE = 'F'
+const OK_TYPE = '0'
+const ERR_TYPE = 'E'
+const WIN_TYPE = 'W'
+const CHECK_WIN_TYPE = 'Q'
 
-func sendBet(conn net.Conn, msj []byte) error {
+func sendMessage(conn net.Conn, msj []byte, typeMsg byte) error {
 	// Send the size of total msj
 	sizeMsj := make([]byte, 4)
 	binary.BigEndian.PutUint32(sizeMsj, uint32(len(msj)))
@@ -17,7 +23,7 @@ func sendBet(conn net.Conn, msj []byte) error {
 	}
 
 	// Send the type of message: Bet
-	typeOfMessage := []byte{byte('B')}
+	typeOfMessage := []byte{byte(typeMsg)}
 	_, err = sendAll(conn, typeOfMessage)
 	if err != nil {
 		return err
