@@ -1,7 +1,7 @@
 import logging
 import struct
 
-from common.protocol import recv_msg, send_msg
+from common.protocol import recv_msg, send_msg, SocketBroken
 from common.protocol import BET_TYPE, OK_TYPE, ERR_TYPE, END_TYPE, WIN_TYPE,CHECK_WIN_TYPE
 from common.betParser import parser_bet, get_winners
 from common.utils import store_bets
@@ -21,7 +21,7 @@ def handle_client_connection(client_socket, agency_register, agency_register_loc
                 client_sending = handle_message(client_socket, msg, agency_register, agency_register_lock, bets_lock)
             else:
                 break
-    except OSError as e:
+    except (SocketBroken,OSError) as e:
         logging.error(f'action: receive_message | result: fail | error: {e}')
     finally:
         if client_socket:

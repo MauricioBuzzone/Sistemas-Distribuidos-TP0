@@ -59,8 +59,11 @@ func (c *Client) StartClientLoop() {
     go func() {
 		<-signalChan
 		if c.conn != nil{
+			log.Infof("action: release_socket | result: success")
 			c.conn.Close()
+			c.conn = nil
 		}
+		log.Infof("action: release_signal_chan | result: success")
 		close(signalChan)
 		c.on = false
     }()
@@ -76,16 +79,22 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 	c.sendBets()
-	c.conn.Close()
-	log.Infof("action: release_socket | result: success")
+	if c.conn != nil{
+		log.Infof("action: release_socket | result: success")
+		c.conn.Close()
+		c.conn = nil
+	}
 
 
 	// The client inquires about the lottery winners. 
 	// In case of not receiving a response, it will 
 	// retry the inquiry later (exponential backoff).
 	c.checkWinners()
-	c.conn.Close()
-	log.Infof("action: release_socket | result: success")
+	if c.conn != nil{
+		log.Infof("action: release_socket | result: success")
+		c.conn.Close()
+		c.conn = nil
+	}
 	log.Infof("action: finish_client | result: success | client_id: %v", c.config.ID)
 }
 
@@ -110,7 +119,7 @@ func (c *Client)checkWinners() {
 		}
 	
 		msg, err := readMessage(c.conn)
-		log.Infof("action: check_winners | %v",msg)
+		
 		if err != nil{
 			log.Infof("action:  | result: fail | %v",err)
 			return
@@ -126,6 +135,7 @@ func (c *Client)checkWinners() {
 			log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v",
 			len(msg[1:]),
 			)
+			log.Infof("action: consulta_ganadores | result: success | ganadores: %v",msg[1:])
 			break
 		
 		} else{

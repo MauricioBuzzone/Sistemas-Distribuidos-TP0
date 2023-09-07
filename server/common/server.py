@@ -1,14 +1,8 @@
 import socket
 import logging
 import signal
-import struct
 import threading
 
-from threading import Thread, Lock
-from common.protocol import recv_msg, send_msg
-from common.protocol import BET_TYPE, OK_TYPE, ERR_TYPE, END_TYPE, WIN_TYPE,CHECK_WIN_TYPE
-from common.utils import Bet, store_bets
-from common.betParser import parser_bet, get_winners
 from common.agencyRegister import AgencyRegister
 from common.handleClient import handle_client_connection
 
@@ -37,7 +31,6 @@ class Server:
         workers = []
         while self._server_on:
             client_sock = self.__accept_new_connection()
-
             worker = threading.Thread(
             target=handle_client_connection, args=(
                 client_sock, 
